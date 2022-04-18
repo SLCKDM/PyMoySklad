@@ -17,8 +17,7 @@ MS doc: https://dev.moysklad.ru/doc/api/remap/1.2/documents/
 
 TODO: Добавить сущности: списания, товаров, отгрузок, приемок, счетов поставщиков
 """
-
-from session import session
+import os
 from typing import Dict, List
 import requests
 from requests.adapters import HTTPAdapter
@@ -30,16 +29,18 @@ adapter = HTTPAdapter(max_retries=retry)
 session.mount('http://', adapter)
 session.mount('https://', adapter)
 
+
 class MoySkladConnector:
     MS_BASE_URL = 'https://online.moysklad.ru/api/remap/1.2'
 
-    def __init__(self, token:str):
-        self.token=token
+    def __init__(self, token: str):
+        self.token = token
         self.ms_headers = {
             "Authorization": self.token,
             "Content-Type": "application/json",
             "Connection": "keep-alive"
         }
+
 
 class MSStocks:
     def __init__(self, msconnector: MoySkladConnector):
@@ -47,11 +48,11 @@ class MSStocks:
         self.headers = msconnector.ms_headers
 
     def get_stocks(self,
-                   limit:int=None,
-                   offset:int=None,
-                   filters:str=None,
-                   expand:str=None,
-                   groupBy:str='variant'
+                   limit: int = None,
+                   offset: int = None,
+                   filters: str = None,
+                   expand: str = None,
+                   groupBy: str = 'variant'
                    ) -> dict:
         """ Получить остатки
         https://dev.moysklad.ru/doc/api/remap/1.2/reports/#otchety-otchet-ostatki-poluchit-ostatki
@@ -67,20 +68,20 @@ class MSStocks:
         """
         url = f'{self.MS_STOCKS_BASE_URL}/all'
         payload = {
-            "limit":limit,
-            "offset":offset,
-            "groupBy":groupBy,
-            "filter":filters,
-            "expand":expand
+            "limit": limit,
+            "offset": offset,
+            "groupBy": groupBy,
+            "filter": filters,
+            "expand": expand
         }
         return session.get(url=url, headers=self.headers, params=payload).json()
 
     def get_stocks_bystore(self,
-                           limit:int=None,
-                           offset:int=None,
-                           filters:str=None,
-                           expand:str=None,
-                           groupBy:str='variant'
+                           limit: int = None,
+                           offset: int = None,
+                           filters: str = None,
+                           expand: str = None,
+                           groupBy: str = 'variant'
                            ) -> dict:
         """ Остатки по складам
         https://dev.moysklad.ru/doc/api/remap/1.2/reports/#otchety-otchet-ostatki-poluchit-ostatki-po-skladam
@@ -96,19 +97,19 @@ class MSStocks:
         """
         url = f'{self.MS_STOCKS_BASE_URL}/bystore'
         payload = {
-            "limit":limit,
-            "offset":offset,
-            "groupBy":groupBy,
-            "filter":filters,
-            "expand":expand
+            "limit": limit,
+            "offset": offset,
+            "groupBy": groupBy,
+            "filter": filters,
+            "expand": expand
         }
         return session.get(url=url, headers=self.headers, params=payload).json()
 
     def get_current_stocks(self,
-                           mode:str='all',
-                           stockType:str='stock',
-                           filters:str=None,
-                           expand:str=None
+                           mode: str = 'all',
+                           stockType: str = 'stock',
+                           filters: str = None,
+                           expand: str = None
                            ) -> dict:
         """ Текущие остатки
         https://dev.moysklad.ru/doc/api/remap/1.2/reports/#otchety-otchet-ostatki-tekuschie-ostatki
@@ -123,11 +124,12 @@ class MSStocks:
         """
         url = f'{self.MS_STOCKS_BASE_URL}/{mode}/current'
         payload = {
-            "stockType":stockType,
-            "filter":filters,
-            "expand":expand
+            "stockType": stockType,
+            "filter": filters,
+            "expand": expand
         }
         return session.get(url=url, headers=self.headers, params=payload).json()
+
 
 class MSAssortment:
 
@@ -136,8 +138,8 @@ class MSAssortment:
         self.headers = msconnector.ms_headers
 
     def get(self,
-            filters:str=None,
-            expand:str=None,
+            filters: str = None,
+            expand: str = None,
             next_href=None
             ) -> Dict:
         """ Возвращает товары с МС
@@ -152,22 +154,26 @@ class MSAssortment:
         payload = {
             "filter": filters,
             "expand": expand
-            }
-        response = session.get(url=next_href or self.assortment_url, headers=self.headers, params=payload).json()
-        result = response['rows']
+        }
+        response = session.get(
+            url=next_href or self.assortment_url, headers=self.headers, params=payload).json()
+        result = response.get('rows')
         if response['meta'].get('nextHref'):
-            result.extend(self.get(next_href=response['meta']['nextHref'])['rows'])
+            result.extend(
+                self.get(next_href=response['meta']['nextHref']).get('rows'))
         return result
+
 
 class Position:
     """ Позиции товаров в документе """
+
     def __init__(self,
                  msconnector: MoySkladConnector,
-                 url:str,
-                 entity_id:str=None,
-                 pos_id:str=None,
-                 raw_data:dict=None
-                ):
+                 url: str,
+                 entity_id: str = None,
+                 pos_id: str = None,
+                 raw_data: dict = None
+                 ):
         self.headers = msconnector.ms_headers
         self.id = pos_id or raw_data['id']
         self.entity_position_url = f"{url}/positions/{self.id}"
@@ -180,7 +186,7 @@ class Position:
 
     @property
     def raw_data(self):
-        payload = {"expand" : "assortment"}
+        payload = {"expand": "assortment"}
         return session.get(url=self.entity_position_url,
                            headers=self.headers,
                            params=payload).json()
@@ -191,21 +197,22 @@ class Position:
 
 #! <---------- Single entity ------------------------------------------------->
 
+
 class Entity:
     """ Абстрактный класс сущностей (Перемещение, заказ и т.д.) """
 
-    def __init__(self, msconnector: MoySkladConnector, id:str):
+    def __init__(self, msconnector: MoySkladConnector, id: str):
         self.id = id
         self.url = f"{msconnector.MS_BASE_URL}/entity"
         self.headers = msconnector.ms_headers
         self.msconnector = msconnector
 
-    def get_raw_data(self, expand:str=None) -> Dict:
+    def get_raw_data(self, expand: str = None) -> Dict:
         """ Получение сырых данных """
         payload = {"expand": expand}
         return session.get(url=self.url, headers=self.headers, params=payload).json()
 
-    def positions(self, expand:str='positions.assortment') -> List:
+    def positions(self, expand: str = 'positions.assortment') -> List:
         """ Дёргает позиции документа
 
         Args:
@@ -216,19 +223,19 @@ class Entity:
         """
         payload = {'expand': expand}
         return [Position(self.msconnector,
-                                entity_id=self.id,
-                                raw_data=position,
-                                url=self.url
-                                ) for position in session.get(url=f"{self.url}/positions",
-                           headers=self.headers,
-                           params=payload).json()['rows']]
+                         entity_id=self.id,
+                         raw_data=position,
+                         url=self.url
+                         ) for position in session.get(url=f"{self.url}/positions",
+                                                       headers=self.headers,
+                                                       params=payload).json().get('rows')]
 
     @property
     def attributes_list(self) -> Dict:
         """ получить список доп. полей документа """
-        return session.get(url=self.attrs_list_url, headers=self.headers).json()['rows']
+        return session.get(url=self.attrs_list_url, headers=self.headers).json().get('rows')
 
-    def get_attribute(self, attr_id:str) -> Dict:
+    def get_attribute(self, attr_id: str) -> Dict:
         """ получить конкретное поле документа по id аттрибута """
         return session.get(url=f"{self.attrs_list_url}/{attr_id}", headers=self.headers).json()
 
@@ -236,13 +243,14 @@ class Entity:
         """ удалить данный документ """
         return session.delete(url=self.url, headers=self.headers)
 
-    def put_data(self, raw_data:Dict):
+    def put_data(self, raw_data: Dict):
         """ Запрос на изменение документа """
         return session.put(url=self.url, headers=self.headers, data=raw_data)
 
+
 class MSOrder(Entity):
 
-    def __init__(self, msconnector: MoySkladConnector, id:str):
+    def __init__(self, msconnector: MoySkladConnector, id: str):
         super().__init__(msconnector, id)
         self.attrs_list_url = f"{self.url}/customerorder/metadata/attributes"
         self.url = f"{self.url}/customerorder/{self.id}"
@@ -253,11 +261,12 @@ class MSOrder(Entity):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__} <id:{self.order_id}>"
 
+
 class MSMove(Entity):
 
-    def __init__(self, msconnector: MoySkladConnector, id:str):
+    def __init__(self, msconnector: MoySkladConnector, id: str):
         super().__init__(msconnector, id)
-        self.attrs_list_url =  f"{self.url}/move/metadata/attributes"
+        self.attrs_list_url = f"{self.url}/move/metadata/attributes"
         self.url = f"{self.url}/move/{self.id}"
 
     def __str__(self) -> str:
@@ -266,11 +275,12 @@ class MSMove(Entity):
     def __repr__(self) -> str:
         return f"{self._class__.__name__} <id:{self.id}>"
 
+
 class MSSupply(Entity):
 
-    def __init__(self, msconnector: MoySkladConnector, id:str):
+    def __init__(self, msconnector: MoySkladConnector, id: str):
         super().__init__(msconnector, id)
-        self.attrs_list_url =  f"{self.url}//metadata/attributes"
+        self.attrs_list_url = f"{self.url}/supply/metadata/attributes"
         self.url = f"{self.url}/supply/{self.id}"
 
     def __str__(self) -> str:
@@ -281,6 +291,7 @@ class MSSupply(Entity):
 
 #! <---------- Entities by list ---------------------------------------------->
 
+
 class EntitiesList:
 
     def __init__(self, msconnector: MoySkladConnector):
@@ -288,8 +299,8 @@ class EntitiesList:
 
     def get(self, filters=None, expand=None):
         payload = {
-            "filter":filters,
-            "expand":expand
+            "filter": filters,
+            "expand": expand
         }
         return session.get(
             url=self.url,
@@ -297,11 +308,13 @@ class EntitiesList:
             params=payload
         ).json().get('rows')
 
+
 class MSMovesList(EntitiesList):
 
     def __init__(self, msconnector: MoySkladConnector):
         super().__init__(msconnector)
         self.url = f"{self.url}/move"
+
 
 class MSOrdersList(EntitiesList):
 
@@ -309,12 +322,13 @@ class MSOrdersList(EntitiesList):
         super().__init__(msconnector)
         self.url = f"{self.url}/customerorder"
 
+
 class SuppliesList(EntitiesList):
 
     def __init__(self, msconnector: MoySkladConnector):
         super().__init__(msconnector)
         self.url = f"{self.url}/supply"
 
-if __name__ == "__main__":
-    msc = MoySkladConnector(ms_token)
 
+if __name__ == "__main__":
+    msc = MoySkladConnector(os.environ.get('MS_TOKEN'))
