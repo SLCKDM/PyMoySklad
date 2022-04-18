@@ -1,0 +1,186 @@
+[
+    {
+        "label": "session",
+        "importPath": "session",
+        "description": "session",
+        "isExtraImport": true,
+        "detail": "session",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "requests",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "requests",
+        "description": "requests",
+        "detail": "requests",
+        "documentation": {}
+    },
+    {
+        "label": "HTTPAdapter",
+        "importPath": "requests.adapters",
+        "description": "requests.adapters",
+        "isExtraImport": true,
+        "detail": "requests.adapters",
+        "documentation": {}
+    },
+    {
+        "label": "Retry",
+        "importPath": "urllib3.util",
+        "description": "urllib3.util",
+        "isExtraImport": true,
+        "detail": "urllib3.util",
+        "documentation": {}
+    },
+    {
+        "label": "MoySkladConnector",
+        "kind": 6,
+        "importPath": "MS",
+        "description": "MS",
+        "peekOfCode": "class MoySkladConnector:\n    MS_BASE_URL = 'https://online.moysklad.ru/api/remap/1.2'\n    def __init__(self, token:str):\n        self.token=token\n        self.ms_headers = {\n            \"Authorization\": self.token,\n            \"Content-Type\": \"application/json\",\n            \"Connection\": \"keep-alive\"\n        }\nclass MSStocks:",
+        "detail": "MS",
+        "documentation": {}
+    },
+    {
+        "label": "MSStocks",
+        "kind": 6,
+        "importPath": "MS",
+        "description": "MS",
+        "peekOfCode": "class MSStocks:\n    def __init__(self, msconnector: MoySkladConnector):\n        self.MS_STOCKS_BASE_URL = f\"{msconnector.MS_BASE_URL}/report/stock\"\n        self.headers = msconnector.ms_headers\n    def get_stocks(self,\n                   limit:int=None,\n                   offset:int=None,\n                   filters:str=None,\n                   expand:str=None,\n                   groupBy:str='variant'",
+        "detail": "MS",
+        "documentation": {}
+    },
+    {
+        "label": "MSAssortment",
+        "kind": 6,
+        "importPath": "MS",
+        "description": "MS",
+        "peekOfCode": "class MSAssortment:\n    def __init__(self, msconnector: MoySkladConnector):\n        self.assortment_url = f\"{msconnector.MS_BASE_URL}/entity/assortment\"\n        self.headers = msconnector.ms_headers\n    def get(self,\n            filters:str=None,\n            expand:str=None,\n            next_href=None\n            ) -> Dict:\n        \"\"\" Возвращает товары с МС",
+        "detail": "MS",
+        "documentation": {}
+    },
+    {
+        "label": "Position",
+        "kind": 6,
+        "importPath": "MS",
+        "description": "MS",
+        "peekOfCode": "class Position:\n    \"\"\" Позиции товаров в документе \"\"\"\n    def __init__(self,\n                 msconnector: MoySkladConnector,\n                 url:str,\n                 entity_id:str=None,\n                 pos_id:str=None,\n                 raw_data:dict=None\n                ):\n        self.headers = msconnector.ms_headers",
+        "detail": "MS",
+        "documentation": {}
+    },
+    {
+        "label": "Entity",
+        "kind": 6,
+        "importPath": "MS",
+        "description": "MS",
+        "peekOfCode": "class Entity:\n    \"\"\" Абстрактный класс сущностей (Перемещение, заказ и т.д.) \"\"\"\n    def __init__(self, msconnector: MoySkladConnector, id:str):\n        self.id = id\n        self.url = f\"{msconnector.MS_BASE_URL}/entity\"\n        self.headers = msconnector.ms_headers\n        self.msconnector = msconnector\n    def get_raw_data(self, expand:str=None) -> Dict:\n        \"\"\" Получение сырых данных \"\"\"\n        payload = {\"expand\": expand}",
+        "detail": "MS",
+        "documentation": {}
+    },
+    {
+        "label": "MSOrder",
+        "kind": 6,
+        "importPath": "MS",
+        "description": "MS",
+        "peekOfCode": "class MSOrder(Entity):\n    def __init__(self, msconnector: MoySkladConnector, id:str):\n        super().__init__(msconnector, id)\n        self.attrs_list_url = f\"{self.url}/customerorder/metadata/attributes\"\n        self.url = f\"{self.url}/customerorder/{self.id}\"\n    def __str__(self) -> str:\n        return f\"{self.__class__.__name__} <id:{self.order_id}>\"\n    def __repr__(self) -> str:\n        return f\"{self.__class__.__name__} <id:{self.order_id}>\"\nclass MSMove(Entity):",
+        "detail": "MS",
+        "documentation": {}
+    },
+    {
+        "label": "MSMove",
+        "kind": 6,
+        "importPath": "MS",
+        "description": "MS",
+        "peekOfCode": "class MSMove(Entity):\n    def __init__(self, msconnector: MoySkladConnector, id:str):\n        super().__init__(msconnector, id)\n        self.attrs_list_url =  f\"{self.url}/move/metadata/attributes\"\n        self.url = f\"{self.url}/move/{self.id}\"\n    def __str__(self) -> str:\n        return f\"{self._class__.__name__} <id:{self.id}>\"\n    def __repr__(self) -> str:\n        return f\"{self._class__.__name__} <id:{self.id}>\"\nclass MSSupply(Entity):",
+        "detail": "MS",
+        "documentation": {}
+    },
+    {
+        "label": "MSSupply",
+        "kind": 6,
+        "importPath": "MS",
+        "description": "MS",
+        "peekOfCode": "class MSSupply(Entity):\n    def __init__(self, msconnector: MoySkladConnector, id:str):\n        super().__init__(msconnector, id)\n        self.attrs_list_url =  f\"{self.url}//metadata/attributes\"\n        self.url = f\"{self.url}/supply/{self.id}\"\n    def __str__(self) -> str:\n        return f\"{self._class__.__name__} <id:{self.id}>\"\n    def __repr__(self) -> str:\n        return f\"{self._class__.__name__} <id:{self.id}>\"\n#! <---------- Entities by list ---------------------------------------------->",
+        "detail": "MS",
+        "documentation": {}
+    },
+    {
+        "label": "EntitiesList",
+        "kind": 6,
+        "importPath": "MS",
+        "description": "MS",
+        "peekOfCode": "class EntitiesList:\n    def __init__(self, msconnector: MoySkladConnector):\n        self.url = f\"{msconnector.MS_BASE_URL}/entity\"\n    def get(self, filters=None, expand=None):\n        payload = {\n            \"filter\":filters,\n            \"expand\":expand\n        }\n        return session.get(\n            url=self.url,",
+        "detail": "MS",
+        "documentation": {}
+    },
+    {
+        "label": "MSMovesList",
+        "kind": 6,
+        "importPath": "MS",
+        "description": "MS",
+        "peekOfCode": "class MSMovesList(EntitiesList):\n    def __init__(self, msconnector: MoySkladConnector):\n        super().__init__(msconnector)\n        self.url = f\"{self.url}/move\"\nclass MSOrdersList(EntitiesList):\n    def __init__(self, msconnector: MoySkladConnector):\n        super().__init__(msconnector)\n        self.url = f\"{self.url}/customerorder\"\nclass SuppliesList(EntitiesList):\n    def __init__(self, msconnector: MoySkladConnector):",
+        "detail": "MS",
+        "documentation": {}
+    },
+    {
+        "label": "MSOrdersList",
+        "kind": 6,
+        "importPath": "MS",
+        "description": "MS",
+        "peekOfCode": "class MSOrdersList(EntitiesList):\n    def __init__(self, msconnector: MoySkladConnector):\n        super().__init__(msconnector)\n        self.url = f\"{self.url}/customerorder\"\nclass SuppliesList(EntitiesList):\n    def __init__(self, msconnector: MoySkladConnector):\n        super().__init__(msconnector)\n        self.url = f\"{self.url}/supply\"\nif __name__ == \"__main__\":\n    msc = MoySkladConnector(ms_token)",
+        "detail": "MS",
+        "documentation": {}
+    },
+    {
+        "label": "SuppliesList",
+        "kind": 6,
+        "importPath": "MS",
+        "description": "MS",
+        "peekOfCode": "class SuppliesList(EntitiesList):\n    def __init__(self, msconnector: MoySkladConnector):\n        super().__init__(msconnector)\n        self.url = f\"{self.url}/supply\"\nif __name__ == \"__main__\":\n    msc = MoySkladConnector(ms_token)",
+        "detail": "MS",
+        "documentation": {}
+    },
+    {
+        "label": "session",
+        "kind": 5,
+        "importPath": "MS",
+        "description": "MS",
+        "peekOfCode": "session = requests.Session()\nretry = Retry(connect=4, backoff_factor=1)\nadapter = HTTPAdapter(max_retries=retry)\nsession.mount('http://', adapter)\nsession.mount('https://', adapter)\nclass MoySkladConnector:\n    MS_BASE_URL = 'https://online.moysklad.ru/api/remap/1.2'\n    def __init__(self, token:str):\n        self.token=token\n        self.ms_headers = {",
+        "detail": "MS",
+        "documentation": {}
+    },
+    {
+        "label": "retry",
+        "kind": 5,
+        "importPath": "MS",
+        "description": "MS",
+        "peekOfCode": "retry = Retry(connect=4, backoff_factor=1)\nadapter = HTTPAdapter(max_retries=retry)\nsession.mount('http://', adapter)\nsession.mount('https://', adapter)\nclass MoySkladConnector:\n    MS_BASE_URL = 'https://online.moysklad.ru/api/remap/1.2'\n    def __init__(self, token:str):\n        self.token=token\n        self.ms_headers = {\n            \"Authorization\": self.token,",
+        "detail": "MS",
+        "documentation": {}
+    },
+    {
+        "label": "adapter",
+        "kind": 5,
+        "importPath": "MS",
+        "description": "MS",
+        "peekOfCode": "adapter = HTTPAdapter(max_retries=retry)\nsession.mount('http://', adapter)\nsession.mount('https://', adapter)\nclass MoySkladConnector:\n    MS_BASE_URL = 'https://online.moysklad.ru/api/remap/1.2'\n    def __init__(self, token:str):\n        self.token=token\n        self.ms_headers = {\n            \"Authorization\": self.token,\n            \"Content-Type\": \"application/json\",",
+        "detail": "MS",
+        "documentation": {}
+    }
+]
