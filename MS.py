@@ -19,9 +19,12 @@ MS doc: https://dev.moysklad.ru/doc/api/remap/1.2/documents/
   - удаление сущности;
   - внесение в сущность изменений
 
-TODO: Реализовать создание документов
+TODO: Реализовать создание документов:
+- списания
+- счет поставщика
+- отгрузки
+
 """
-import os
 from typing import Dict, List, Union, Optional
 import requests
 from requests.adapters import HTTPAdapter
@@ -50,6 +53,7 @@ class MoySkladConnector:
 
 class Stocks:
     """ Класс для получения остатков с МС """
+
     def __init__(self, msconnector: MoySkladConnector):
         self.MS_STOCKS_BASE_URL = f"{msconnector.ms_base_url}/report/stock"
         self.headers = msconnector.ms_headers
@@ -177,6 +181,9 @@ class Position:
         """ Данные по товару """
         return self.raw_data['assortment']
 
+    def delete(self):
+        return session.delete(self.entity_position_url,
+                              headers=self.headers)
 #! <---------- Single entity ------------------------------------------------->
 
 
@@ -191,7 +198,7 @@ class Entity:
 
     def __init__(self,
                  msconnector: MoySkladConnector,
-                 entity_id: Optional[str]=None,
+                 entity_id: Optional[str] = None,
                  raw: Optional[Dict] = None):
         if entity_id or raw:
             self.id = entity_id or raw.get('id')
@@ -202,10 +209,9 @@ class Entity:
     @property
     def meta(self):
         """ Достатёт мету текущего документа """
-        return {'meta': self.raw.get('meta')}
+        return {'meta': self.get_raw().get('meta')}
 
-
-    def raw(self, expand: str = None) -> Dict:
+    def get_raw(self, expand: str = None) -> Dict:
         """ Получение сырых данных """
         payload = {"expand": expand}
         return session.get(url=self.url,
@@ -223,7 +229,6 @@ class Entity:
         """
         payload = {'expand': expand}
         return [Position(self.msconnector,
-                         pos_id=self.id,
                          raw_data=position,
                          url=self.url
                          ) for position in session.get(url=f"{self.url}/positions",
@@ -248,6 +253,44 @@ class Entity:
         return session.put(url=self.url, headers=self.headers, data=raw_data)
 
 
+class NewPositions:
+    """ Для создания новых позиций в документе
+
+    Args:
+        url (str): url документа в который вноятся позиции
+        headers (Dict): хердеры для запроса
+    """
+
+    def __init__(self, url: str, headers: Dict):
+        self.url = url
+        self.headers = headers
+        self.positions = []
+
+    def __repr__(self):
+        return self.positions
+
+    def __str__(self):
+        return self.positions
+
+    def create(self, assortment_meta: dict, quantity: int):
+        """ Создаёт позицию
+
+        Args:
+            assortment_meta (dict): мета позиции
+            quantity (int): кол-во позиции
+        """
+        self.positions.append({
+            "assortment": {"meta": assortment_meta},
+            "quantity": quantity
+        })
+
+    def save(self):
+        """ сохраняет новые позиции в документе
+        """
+        payload = ujson.dumps(self.positions)
+        return session.post(f"{self.url}/positions", headers=self.headers, data=payload)
+
+
 class Product(Entity):
     """ Сущность товара
 
@@ -257,7 +300,7 @@ class Product(Entity):
         raw (Dict, optional): сырые данные|словарь с товаром. Defaults to None.
     """
 
-    def __init__(self, msconnector: MoySkladConnector, entity_id:str=None, raw:Dict=None):
+    def __init__(self, msconnector: MoySkladConnector, entity_id: str = None, raw: Dict = None):
         super().__init__(msconnector, entity_id, raw)
         self.url = f"{self.url}/product/{self.id}"
         self.attrs_list_url = f"{self.url}/product/metadata/attributes"
@@ -289,13 +332,14 @@ class CustomerOrder(Entity):
         raw (Dict, optional): сырые данные|словарь заказа. Defaults to None.
     """
 
-    def __init__(self, msconnector: MoySkladConnector, entity_id:str=None, raw:Dict=None):
+    def __init__(self, msconnector: MoySkladConnector, entity_id: str = None, raw: Dict = None):
         super().__init__(msconnector, entity_id, raw)
         self.url = f"{self.url}/customerorder"
-        if id or raw:
+        if self.id or raw:
             self.raw = raw or self.raw()
             self.url = f"{self.url}/{self.id}"
         self.attrs_list_url = f"{self.url}/metadata/attributes"
+        self.new_positions = NewPositions(self.url, msconnector.ms_headers)
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__} <id:{self.id}>"
@@ -303,7 +347,7 @@ class CustomerOrder(Entity):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__} <id:{self.id}>"
 
-    def create(self, name:Union[str, int], organization:Dict, agent:Dict):
+    def create(self, name: Union[str, int], organization: Dict, agent: Dict):
         """ Создать заказ
 
         Args:
@@ -321,7 +365,7 @@ class CustomerOrder(Entity):
         })
         return session.post(url=self.url, headers=self.headers, data=payload)
 
-    def demands(self, expand:str=None) -> List[Dict]:
+    def demands(self, expand: str = None) -> List[Dict]:
         """_summary_
 
         Args:
@@ -331,7 +375,7 @@ class CustomerOrder(Entity):
             List[Dict]: список отгрузок заказа
         """
         payload = {
-            "expand":expand
+            "expand": expand
         }
         return [
             session.get(
@@ -350,16 +394,30 @@ class Move(Entity):
         raw (Dict, optional): сырые данные|словарь с перемещением. Defaults to None.
     """
 
-    def __init__(self, msconnector: MoySkladConnector, entity_id:str=None, raw:Dict=None):
+    def __init__(self, msconnector: MoySkladConnector, entity_id: str = None, raw: Dict = None):
         super().__init__(msconnector, entity_id, raw)
-        self.attrs_list_url = f"{self.url}/move/metadata/attributes"
-        self.url = f"{self.url}/move/{self.id}"
+        self.url = f"{self.url}/move"
+        if entity_id or raw:
+            self.attrs_list_url = f"{self.url}/move/metadata/attributes"
+            self.url = f"{self.url}/{self.id}"
+        self.raw = raw or self.get_raw()
+        self.new_positions = NewPositions(self.url, msconnector.ms_headers)
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__} <id:{self.id}>"
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__} <id:{self.id}>"
+
+    def create(self, organization_meta: Dict, source_store_meta: Dict, target_store_meta: Dict, move_name: str = None):
+        payload = {
+            "organization": organization_meta,
+            "targetStore": target_store_meta,
+            "sourceStore": source_store_meta
+        }
+        if move_name:
+            payload['name'] = move_name
+        return session.post(url=self.url, headers=self.headers, data=ujson.dumps(payload))
 
 
 class Supply(Entity):
@@ -371,16 +429,29 @@ class Supply(Entity):
         raw (Dict, optional): сырые данные|словарь с приемкой. Defaults to None.
     """
 
-    def __init__(self, msconnector: MoySkladConnector, entity_id:str=None, raw:Dict=None):
+    def __init__(self, msconnector: MoySkladConnector, entity_id: str = None, raw: Dict = None):
         super().__init__(msconnector, entity_id, raw)
-        self.attrs_list_url = f"{self.url}/supply/metadata/attributes"
-        self.url = f"{self.url}/supply/{self.id}"
+        self.url = f"{self.url}/supply"
+        if entity_id or raw:
+            self.attrs_list_url = f"{self.url}/supply/metadata/attributes"
+            self.url = f"{self.url}/{self.id}"
+        self.new_positions = NewPositions(self.url, msconnector.ms_headers)
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__} <id:{self.id}>"
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__} <id:{self.id}>"
+
+    def create(self, organization_meta: Dict, agent_meta: Dict, store_meta: Dict, supply_name: str = None):
+        payload = {
+            "organization": organization_meta,
+            "store": store_meta,
+            "agent": agent_meta
+        }
+        if supply_name:
+            payload['name'] = supply_name
+        return session.post(url=self.url, headers=self.headers, data=ujson.dumps(payload))
 
 
 class Loss(Entity):
@@ -392,7 +463,7 @@ class Loss(Entity):
         raw (Dict, optional): сырые данные|словарь со списанием. Defaults to None.
     """
 
-    def __init__(self, msconnector: MoySkladConnector, entity_id:str=None, raw:Dict=None):
+    def __init__(self, msconnector: MoySkladConnector, entity_id: str = None, raw: Dict = None):
         super().__init__(msconnector, entity_id, raw)
         self.attrs_list_url = f"{self.url}/loss/metadata/attributes"
         self.url = f"{self.url}/supply/{self.id}"
@@ -413,10 +484,11 @@ class InvoiceIn(Entity):
         raw (Dict, optional): сырые данные|словарь со счетом. Defaults to None.
     """
 
-    def __init__(self, msconnector: MoySkladConnector, entity_id:str=None, raw:Dict=None):
+    def __init__(self, msconnector: MoySkladConnector, entity_id: str = None, raw: Dict = None):
         super().__init__(msconnector, entity_id, raw)
         self.attrs_list_url = f"{self.url}/invoicein/metadata/attributes"
         self.url = f"{self.url}/invoicein/{self.id}"
+        self.new_positions = NewPositions(self.url, msconnector.ms_headers)
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__} <id:{self.id}>"
@@ -434,10 +506,11 @@ class Demand(Entity):
         raw (Dict, optional): сырые данные|словарь с отгрузкой. Defaults to None.
     """
 
-    def __init__(self, msconnector: MoySkladConnector, entity_id:str=None, raw:Dict=None):
+    def __init__(self, msconnector: MoySkladConnector, entity_id: str = None, raw: Dict = None):
         super().__init__(msconnector, entity_id, raw)
         self.attrs_list_url = f"{self.url}/demand/metadata/attributes"
         self.url = f"{self.url}/demand/{self.id}"
+        self.new_positions = NewPositions(self.url, msconnector.ms_headers)
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__} <id:{self.id}>"
@@ -454,7 +527,7 @@ class Organization(Entity):
         id (str): id конкретной организации
     """
 
-    def __init__(self, msconnector: MoySkladConnector, entity_id:str=None):
+    def __init__(self, msconnector: MoySkladConnector, entity_id: str = None):
         super().__init__(msconnector, entity_id)
         self.attrs_list_url = f"{self.url}/organization/metadata/attributes"
         self.url = f"{self.url}/organization/{self.id}"
@@ -474,7 +547,7 @@ class Counterparty(Entity):
         id (str): id конкретного контрагента
     """
 
-    def __init__(self, msconnector: MoySkladConnector, entity_id:str):
+    def __init__(self, msconnector: MoySkladConnector, entity_id: str):
         super().__init__(msconnector, entity_id)
         self.attrs_list_url = f"{self.url}/counterparty/metadata/attributes"
         self.url = f"{self.url}/counterparty/{self.id}"
@@ -485,11 +558,32 @@ class Counterparty(Entity):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__} <id:{self.id}>"
 
+
+class Store(Entity):
+    """Сущность склада
+
+    Args:
+        msconnector (MoySkladConnector): коннектор
+        entity_id (str): id склада
+    """
+
+    def __init__(self, msconnector: MoySkladConnector, entity_id: str):
+        super().__init__(msconnector, entity_id)
+        self.attrs_list_url = f"{self.url}/store/metadata/attributes"
+        self.url = f"{self.url}/store/{self.id}"
+        self.raw = self.get_raw()
+
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__} <{self.raw['name']}> <id:{self.id}>"
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__} <{self.raw['name']}> <id:{self.id}>"
+
 #! <---------- Entities by list ---------------------------------------------->
 
 
 class EntitiesList:
-    """ Абстрактный класс для сущностей и документов
+    """ Абстрактный класс списка сущностей и документов
 
     args:
         msconnector (MoySkladConnector): коннектор МС
@@ -500,7 +594,7 @@ class EntitiesList:
         self.headers = msconnector.ms_headers
         self.msconnector = msconnector
 
-    def get(self, filters:str=None, expand:str=None, next_href:str=None) -> List[Dict]:
+    def get(self, limit: int = None, offset: int = None, filters: str = None, expand: str = None, next_href: str = None) -> List[Dict]:
         """ Возвращает список документов
 
         Args:
@@ -511,14 +605,17 @@ class EntitiesList:
         Returns:
             dict: товары, соответствующие запросу
         """
+
         payload = {
+            "limit": limit,
+            "offset": offset,
             "filter": filters,
             "expand": expand
         }
         response = session.get(
             url=next_href or self.url, headers=self.headers, params=payload).json()
         result = response.get('rows')
-        if response['meta'].get('nextHref'):
+        if response['meta'].get('nextHref') and not limit:
             result.extend(self.get(next_href=response['meta']['nextHref']))
         return result
 
@@ -604,6 +701,15 @@ class CounterpartiesList(EntitiesList):
     def __init__(self, msconnector: MoySkladConnector):
         super().__init__(msconnector)
         self.url = f"{self.url}/counterparty"
+
+
+class StoresList(EntitiesList):
+    """ Список складов """
+
+    def __init__(self, ms_connector: MoySkladConnector):
+        super().__init__(ms_connector)
+        self.url = f"{self.url}/store"
+
 
 if __name__ == "__main__":
     msc = MoySkladConnector(MS_TOKEN)
